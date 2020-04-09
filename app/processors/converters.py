@@ -19,6 +19,7 @@
 #  converters.py
 import json
 import math
+import os
 
 from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
@@ -42,6 +43,7 @@ from app.models.data import Extrinsic, Block, Event, Runtime, RuntimeModule, Run
     RuntimeEvent, RuntimeEventAttribute, RuntimeType, RuntimeStorage, BlockTotal, RuntimeConstant, AccountAudit, \
     AccountIndexAudit, ReorgBlock, ReorgExtrinsic, ReorgEvent, ReorgLog, RuntimeErrorMessage
 
+SEQUENCE_BLOCKS_PER_BATCH = int(os.environ.get('SEQUENCE_BLOCKS_PER_BATCH', 5))
 
 class HarvesterCouldNotAddBlock(Exception):
     pass
@@ -708,7 +710,7 @@ class PolkascanHarvesterService(BaseService):
         if start_block_id < end_block_id:
             # Continue integrity check
 
-            # print('== Start integrity checks from {} to {} =='.format(start_block_id, end_block_id))
+            print('== Start integrity checks from {} to {} =='.format(start_block_id, end_block_id))
 
             for block_nr in range(start_block_id, end_block_id, chunk_size):
                 # TODO replace limit with filter_by block range
@@ -760,8 +762,11 @@ class PolkascanHarvesterService(BaseService):
         return {'integrity_head': integrity_head.value}
 
     def start_sequencer(self):
-        integrity_status = self.integrity_checks()
-        self.db_session.commit()
+        try:
+            integrity_status = self.integrity_checks()
+            self.db_session.commit()
+        except BlockIntegrityError as e:
+            print(e)
 
         block_nr = None
 
@@ -776,12 +781,18 @@ class PolkascanHarvesterService(BaseService):
         if sequencer_head is None:
             sequencer_head = -1
 
+        sequencer_target = int(integrity_head.value) + 1
+        if (sequencer_target - sequencer_head - 1) > SEQUENCE_BLOCKS_PER_BATCH:
+            sequencer_target = sequencer_head + SEQUENCE_BLOCKS_PER_BATCH + 1
+
         # Start sequencing process
+
+        print('Start sequencing from {} to {} '.format(sequencer_head + 1, sequencer_target))
 
         sequencer_parent_block = BlockTotal.query(self.db_session).filter_by(id=sequencer_head).first()
         parent_block = Block.query(self.db_session).filter_by(id=sequencer_head).first()
 
-        for block_nr in range(sequencer_head + 1, int(integrity_head.value) + 1):
+        for block_nr in range(sequencer_head + 1, sequencer_target):
 
             if block_nr == 0:
                 # No block ever sequenced, check if chain is at genesis state
@@ -819,6 +830,7 @@ class PolkascanHarvesterService(BaseService):
                 sequencer_parent_block_data = sequencer_parent_block.asdict()
                 parent_block_data = parent_block.asdict()
 
+            print('Sequence block #{}'.format(block_nr))
             sequenced_block = self.sequence_block(block, parent_block_data, sequencer_parent_block_data)
             self.db_session.commit()
 
