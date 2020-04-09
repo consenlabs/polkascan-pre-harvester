@@ -206,7 +206,7 @@ def start_harvester(self, check_gaps=False):
             end_block = int(block_set['block_to'])
 
             chuck_size = BLOCKS_PER_BATCH
-            for n in range(start_block, end_block, chuck_size):
+            for n in range(start_block, end_block+1, chuck_size):
                 # Get start and end block hash
                 end_block_hash = substrate.get_block_hash(n)
                 start_block_hash = substrate.get_block_hash(n + chuck_size)
