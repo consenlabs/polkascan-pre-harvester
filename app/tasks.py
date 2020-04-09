@@ -43,6 +43,7 @@ from app.settings import DB_CONNECTION, DEBUG, SUBSTRATE_RPC_URL, TYPE_REGISTRY,
 
 CELERY_BROKER = os.environ.get('CELERY_BROKER')
 CELERY_BACKEND = os.environ.get('CELERY_BACKEND')
+CHECK_GAPS_PERIOD = int(os.environ.get('CHECK_GAPS_PERIOD', 600))
 
 app = celery.Celery('tasks', broker=CELERY_BROKER, backend=CELERY_BACKEND)
 
@@ -52,10 +53,16 @@ app.conf.beat_schedule = {
         'schedule': 10.0,
         'args': ()
     },
+    'check-head-with-gaps': {
+        'task': 'app.tasks.start_harvester',
+        'schedule': CHECK_GAPS_PERIOD,
+        'args': [True]
+    },
 }
 
 app.conf.timezone = 'UTC'
 
+BLOCKS_PER_BATCH = int(os.environ.get('BLOCKS_PER_BATCH', 200))
 
 class BaseTask(celery.Task):
 
@@ -109,13 +116,13 @@ def accumulate_block_recursive(self, block_hash, end_block_hash=None):
     add_count = 0
 
     try:
-
-        for nr in range(0, 10):
+        # Process at most BLOCKS_PER_BATCH blocks once
+        for nr in range(0, BLOCKS_PER_BATCH):
             if not block or block.id > 0:
                 # Process block
                 block = harvester.add_block(block_hash)
 
-                print('+ Added {} '.format(block_hash))
+                print('+ Added #{} {} '.format(block.id, block_hash))
 
                 add_count += 1
 
@@ -215,18 +222,36 @@ def start_harvester(self, check_gaps=False):
         remaining_sets_result = Block.get_missing_block_ids(self.session)
 
         for block_set in remaining_sets_result:
+            start_block = int(block_set['block_from'])
+            end_block = int(block_set['block_to'])
 
-            # Get start and end block hash
-            end_block_hash = substrate.get_block_hash(int(block_set['block_from']))
-            start_block_hash = substrate.get_block_hash(int(block_set['block_to']))
+            chuck_size = BLOCKS_PER_BATCH
 
-            # Start processing task
-            accumulate_block_recursive.delay(start_block_hash, end_block_hash)
+            if (end_block - start_block) >= chuck_size:
+                for n in range(start_block, end_block+1, chuck_size):
+                    # Get start and end block hash
+                    end_block_hash = substrate.get_block_hash(n)
+                    start_block_hash = substrate.get_block_hash(n + chuck_size)
 
-            block_sets.append({
-                'start_block_hash': start_block_hash,
-                'end_block_hash': end_block_hash
-            })
+                    # Start processing task
+                    accumulate_block_recursive.delay(start_block_hash, end_block_hash)
+
+                    block_sets.append({
+                        'start_block_hash': start_block_hash,
+                        'end_block_hash': end_block_hash
+                    })
+            else:
+                # Get start and end block hash, processing them in reverse order
+                end_block_hash = substrate.get_block_hash(start_block)
+                start_block_hash = substrate.get_block_hash(end_block)
+
+                # Start processing task
+                accumulate_block_recursive.delay(start_block_hash, end_block_hash)
+
+                block_sets.append({
+                    'start_block_hash': start_block_hash,
+                    'end_block_hash': end_block_hash
+                })
 
     # Start sequencer
     sequencer_task = start_sequencer.delay()
