@@ -58,7 +58,6 @@ app.conf.beat_schedule = {
 }
 
 app.conf.timezone = 'UTC'
-app.conf.result_expires = 600
 
 BLOCKS_PER_BATCH = os.environ.get('BLOCKS_PER_BATCH', 200)
 
