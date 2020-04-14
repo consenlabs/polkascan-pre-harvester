@@ -221,7 +221,7 @@ def start_harvester(self, check_gaps=False):
                         'start_block_hash': start_block_hash,
                         'end_block_hash': end_block_hash
                     })
-            else
+            else:
                 # Get start and end block hash
                 end_block_hash = substrate.get_block_hash(end_block)
                 start_block_hash = substrate.get_block_hash(start_block)
