@@ -40,6 +40,7 @@ from app.settings import DB_CONNECTION, DEBUG, SUBSTRATE_RPC_URL, TYPE_REGISTRY,
 
 CELERY_BROKER = os.environ.get('CELERY_BROKER')
 CELERY_BACKEND = os.environ.get('CELERY_BACKEND')
+CHECK_GAPS_PERIOD = os.environ.get('CHECK_GAPS_PERIOD', 600)
 
 app = celery.Celery('tasks', broker=CELERY_BROKER, backend=CELERY_BACKEND)
 
@@ -49,9 +50,9 @@ app.conf.beat_schedule = {
         'schedule': 10.0,
         'args': ()
     },
-    'check-head-with-gaps-600-seconds': {
+    'check-head-with-gaps': {
         'task': 'app.tasks.start_harvester',
-        'schedule': 600.0,
+        'schedule': CHECK_GAPS_PERIOD,
         'args': [True]
     },
 }
@@ -206,10 +207,24 @@ def start_harvester(self, check_gaps=False):
             end_block = int(block_set['block_to'])
 
             chuck_size = BLOCKS_PER_BATCH
-            for n in range(start_block, end_block+1, chuck_size):
+
+            if (end_block - start_block) >= chuck_size:
+                for n in range(start_block, end_block+1, chuck_size):
+                    # Get start and end block hash
+                    end_block_hash = substrate.get_block_hash(n)
+                    start_block_hash = substrate.get_block_hash(n + chuck_size)
+
+                    # Start processing task
+                    accumulate_block_recursive.delay(start_block_hash, end_block_hash)
+
+                    block_sets.append({
+                        'start_block_hash': start_block_hash,
+                        'end_block_hash': end_block_hash
+                    })
+            else
                 # Get start and end block hash
-                end_block_hash = substrate.get_block_hash(n)
-                start_block_hash = substrate.get_block_hash(n + chuck_size)
+                end_block_hash = substrate.get_block_hash(end_block)
+                start_block_hash = substrate.get_block_hash(start_block)
 
                 # Start processing task
                 accumulate_block_recursive.delay(start_block_hash, end_block_hash)
