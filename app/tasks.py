@@ -222,9 +222,9 @@ def start_harvester(self, check_gaps=False):
                         'end_block_hash': end_block_hash
                     })
             else:
-                # Get start and end block hash
-                end_block_hash = substrate.get_block_hash(end_block)
-                start_block_hash = substrate.get_block_hash(start_block)
+                # Get start and end block hash, processing them in reverse order
+                end_block_hash = substrate.get_block_hash(start_block)
+                start_block_hash = substrate.get_block_hash(end_block)
 
                 # Start processing task
                 accumulate_block_recursive.delay(start_block_hash, end_block_hash)
