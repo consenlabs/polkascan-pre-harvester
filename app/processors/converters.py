@@ -34,7 +34,8 @@ from scalecodec.block import ExtrinsicsDecoder, EventsDecoder, ExtrinsicsBlock61
 
 from app.processors.base import BaseService, ProcessorRegistry
 from scalecodec.type_registry import load_type_registry_preset
-from substrateinterface import SubstrateInterface, SubstrateRequestException
+from substrateinterface import SubstrateRequestException
+from app.substrate import SubstrateInterface
 
 from app.settings import DEBUG, SUBSTRATE_RPC_URL, ACCOUNT_AUDIT_TYPE_NEW, ACCOUNT_INDEX_AUDIT_TYPE_NEW, \
     SUBSTRATE_MOCK_EXTRINSICS, FINALIZATION_BY_BLOCK_CONFIRMATIONS, SEARCH_INDEX_SLASHED_ACCOUNT, \
