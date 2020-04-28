@@ -286,3 +286,67 @@ class RebuildSearchIndexResource(BaseResource):
                 'task_id': task.id
             }
         }
+
+class PolkascanProcessBlocksResource(BaseResource):
+
+    def on_post(self, req, resp):
+
+        from_block_hash = None
+        to_block_hash = None
+        from_block = req.media.get('block_from')
+        to_block = req.media.get('block_to')
+
+        if not from_block and not to_block:
+            resp.status = falcon.HTTP_BAD_REQUEST
+            resp.media = {'errors': ['from_block and to_block should be supplied']}
+            return
+
+        if from_block > to_block:
+            tmp = from_block
+            from_block = to_block
+            to_block = tmp
+
+        substrate = SubstrateInterface(SUBSTRATE_RPC_URL)
+
+        from_block_hash = substrate.get_block_hash(from_block)
+        if not from_block_hash:
+            resp.status = falcon.HTTP_404
+            resp.media = {'result': 'Block {} not found'.format(from_block)}
+            return
+
+        to_block_hash = substrate.get_block_hash(to_block)
+        if not from_block_hash:
+            resp.status = falcon.HTTP_404
+            resp.media = {'result': 'Block {} not found'.format(to_block)}
+            return
+
+        block_hash = to_block_hash
+
+        harvester = PolkascanHarvesterService(self.session, type_registry=TYPE_REGISTRY)
+
+        block = None
+
+        while True:
+            try:
+                block = harvester.add_block(block_hash)
+                if block:
+                    print('Added {} {}'.format(block.id, block_hash))
+            except BlockAlreadyAdded as e:
+                print('Skipping {}'.format(block_hash))
+
+            if block_hash == from_block_hash:
+                break
+
+            if not block:
+                resp.status = falcon.HTTP_200
+                resp.media = {'result': 'Block {} not found'.format(block_hash)}
+                return
+
+            block_hash = block.parent_hash
+            if block.id == 0:
+                break
+
+            self.session.commit()
+
+        resp.status = falcon.HTTP_200
+        resp.media = {'result': 'added', 'from': from_block_hash, 'to': to_block_hash}
