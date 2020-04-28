@@ -709,7 +709,7 @@ class PolkascanHarvesterService(BaseService):
         if start_block_id < end_block_id:
             # Continue integrity check
 
-            # print('== Start integrity checks from {} to {} =='.format(start_block_id, end_block_id))
+            print('== Start integrity checks from {} to {} =='.format(start_block_id, end_block_id))
 
             for block_nr in range(start_block_id, end_block_id, chunk_size):
                 # TODO replace limit with filter_by block range
@@ -781,6 +781,8 @@ class PolkascanHarvesterService(BaseService):
             sequencer_head = -1
 
         # Start sequencing process
+
+        print('Start sequencing from {} to {} '.format(sequencer_head + 1, int(integrity_head.value) + 1))
 
         sequencer_parent_block = BlockTotal.query(self.db_session).filter_by(id=sequencer_head).first()
         parent_block = Block.query(self.db_session).filter_by(id=sequencer_head).first()
