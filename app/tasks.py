@@ -42,7 +42,7 @@ from app.settings import DB_CONNECTION, DEBUG, SUBSTRATE_RPC_URL, TYPE_REGISTRY,
 
 CELERY_BROKER = os.environ.get('CELERY_BROKER')
 CELERY_BACKEND = os.environ.get('CELERY_BACKEND')
-CHECK_GAPS_PERIOD = os.environ.get('CHECK_GAPS_PERIOD', 600)
+CHECK_GAPS_PERIOD = int(os.environ.get('CHECK_GAPS_PERIOD', 600))
 
 app = celery.Celery('tasks', broker=CELERY_BROKER, backend=CELERY_BACKEND)
 
@@ -61,7 +61,7 @@ app.conf.beat_schedule = {
 
 app.conf.timezone = 'UTC'
 
-BLOCKS_PER_BATCH = os.environ.get('BLOCKS_PER_BATCH', 200)
+BLOCKS_PER_BATCH = int(os.environ.get('BLOCKS_PER_BATCH', 200))
 
 class BaseTask(celery.Task):
 
