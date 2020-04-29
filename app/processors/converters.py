@@ -212,6 +212,8 @@ class PolkascanHarvesterService(BaseService):
             initial_session_event.add_session_old(db_session=self.db_session, session_id=0)
 
     def process_metadata(self, spec_version, block_hash):
+        # Setup codec
+        RuntimeConfiguration().set_active_spec_version_id(spec_version)
 
         # Check if metadata already in store
         if spec_version not in self.metadata_store:
