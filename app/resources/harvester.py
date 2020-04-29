@@ -32,7 +32,7 @@ from app.resources.base import BaseResource
 from app.schemas import load_schema
 from app.processors.converters import PolkascanHarvesterService, BlockAlreadyAdded, BlockIntegrityError
 from substrateinterface import SubstrateInterface
-from app.tasks import accumulate_block_recursive, start_harvester, rebuilding_search_index
+from app.tasks import accumulate_block_recursive, start_harvester, rebuilding_search_index, rebuild_block_datetime
 from app.settings import SUBSTRATE_RPC_URL, TYPE_REGISTRY
 
 
@@ -350,3 +350,20 @@ class PolkascanProcessBlocksResource(BaseResource):
 
         resp.status = falcon.HTTP_200
         resp.media = {'result': 'added', 'from': from_block_hash, 'to': to_block_hash}
+
+class FixBlockDatetimeResource(BaseResource):
+
+    def on_post(self, req, resp):
+        task = rebuild_block_datetime.delay(
+            block_from=req.media.get('block_from'),
+            block_to=req.media.get('block_to'),
+        )
+
+        resp.status = falcon.HTTP_201
+
+        resp.media = {
+            'status': 'success',
+            'data': {
+                'task_id': task.id
+            }
+        }

@@ -18,6 +18,8 @@
 #
 #  tasks.py
 
+import dateutil.parser
+import pytz
 import os
 from time import sleep
 
@@ -256,3 +258,64 @@ def start_harvester(self, check_gaps=False):
         'block_sets': block_sets,
         'sequencer_task_id': sequencer_task.task_id
     }
+
+@app.task(base=BaseTask, bind=True)
+def rebuild_block_datetime(self, block_from, block_to=None):
+    if not block_to:
+        integrity_head = Status.get_status(self.session, 'INTEGRITY_HEAD')
+        block_to = int(integrity_head.value)
+
+    if block_from > block_to:
+        return {
+            'result': '{} > {}, no blocks fixed'.format(block_from, block_to)
+        }
+
+    add_count = 0
+
+    for nr in range(block_from, int(block_to)+1):
+        try:
+            block = Block.query(self.session).filter_by(id=nr).first()
+
+            if not block:
+                print('#{} not found, skip'.format(nr))
+                continue
+
+            if block.datetime is not None:
+                print('#{} has no need to be fixed'.format(nr))
+                continue
+
+            extrinsic = Extrinsic.query(self.session).filter_by(
+                block_id=nr,
+                module_id='timestamp',
+                call_id='set',
+            ).first()
+
+            if not extrinsic:
+                print('#{} extrinsics not found, skip'.format(nr))
+                continue
+
+            if len(extrinsic.params) > 0:
+                datetime = extrinsic.params[0]['value']
+                if not datetime:
+                    print('#{} datetime not found, skip'.format(nr))
+                    continue
+
+                block.set_datetime(dateutil.parser.parse(datetime).replace(tzinfo=pytz.UTC))
+                block.save(self.session)
+
+                add_count += 1
+
+                self.session.commit()
+
+                print('#{} datetime fixed'.format(nr))
+            else:
+                print('#{} datetime unchanged'.format(nr))
+        except Exception as exc:
+            print('! ERROR processing #{}, {}'.format(nr, exc))
+
+    return {
+        'result': '{} blocks fixed'.format(add_count),
+        'from': block_from,
+        'to': block_from + add_count - 1
+    }
+
