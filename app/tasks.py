@@ -37,7 +37,7 @@ from sqlalchemy.sql import func
 from app.models.data import Extrinsic, Block, BlockTotal, Account, AccountInfoSnapshot, SearchIndex
 from app.models.harvester import Status
 from app.processors.converters import PolkascanHarvesterService, HarvesterCouldNotAddBlock, BlockAlreadyAdded, \
-    BlockIntegrityError
+    BlockIntegrityError, BlockDatetimeInvalid
 from scalecodec.exceptions import RemainingScaleBytesNotEmptyException
 from substrateinterface import SubstrateInterface, xxh128
 
@@ -181,6 +181,9 @@ def start_sequencer(self):
             result = harvester.start_sequencer()
         except BlockIntegrityError as e:
             result = {'result': str(e)}
+        except BlockDatetimeInvalid as e:
+            result = {'result': str(e)}
+            rebuild_block_datetime.delay(e.block_id, e.block_id)
 
         sequencer_task.value = None
         sequencer_task.save(self.session)

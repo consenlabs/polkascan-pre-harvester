@@ -52,6 +52,13 @@ if settings.DEBUG:
     logger.addHandler(ch)
 
 
+class BlockDatetimeInvalid(Exception):
+    def __init__(self, block_id):
+        self.block_id = block_id
+
+    def __str__(self):
+        return 'The datetime of block #{} is invalid'.format(self.block_id)
+
 class HarvesterCouldNotAddBlock(Exception):
     pass
 
@@ -739,6 +746,8 @@ class PolkascanHarvesterService(BaseService):
         self.db_session.delete(block)
 
     def sequence_block(self, block, parent_block_data=None, parent_sequenced_block_data=None):
+        if block.datetime is None:
+            raise BlockDatetimeInvalid(block.id)
 
         sequenced_block = BlockTotal(
             id=block.id
@@ -899,7 +908,7 @@ class PolkascanHarvesterService(BaseService):
 
         # Start sequencing process
 
-        print('Start sequencing from {} to {} '.format(sequencer_head + 1, sequencer_target))
+        print('Start sequencing from {} to {} '.format(sequencer_head + 1, sequencer_target - 1))
 
         sequencer_parent_block = BlockTotal.query(self.db_session).filter_by(id=sequencer_head).first()
         parent_block = Block.query(self.db_session).filter_by(id=sequencer_head).first()
