@@ -33,8 +33,8 @@ from app.models.harvester import Setting, Status
 from app.resources.base import BaseResource
 from app.schemas import load_schema
 from app.processors.converters import PolkascanHarvesterService, BlockAlreadyAdded, BlockIntegrityError
-from substrateinterface import SubstrateInterface
-from app.tasks import accumulate_block_recursive, start_harvester, rebuild_search_index, rebuild_account_info_snapshot
+from substrateinterface import SubstrateInterface 
+from app.tasks import accumulate_block_recursive, start_harvester, rebuild_search_index, rebuild_account_info_snapshot, rebuild_block_datetime
 from app.settings import SUBSTRATE_RPC_URL, TYPE_REGISTRY, TYPE_REGISTRY_FILE
 
 
@@ -362,4 +362,21 @@ class RebuildAccountInfoResource(BaseResource):
         resp.media = {
             'status': 'Search index rebuild task created',
             'data': data
+        }
+
+class FixBlockDatetimeResource(BaseResource):
+
+    def on_post(self, req, resp):
+        task = rebuild_block_datetime.delay(
+            block_from=req.media.get('block_from'),
+            block_to=req.media.get('block_to'),
+        )
+
+        resp.status = falcon.HTTP_201
+
+        resp.media = {
+            'status': 'success',
+            'data': {
+                'task_id': task.id
+            }
         }
