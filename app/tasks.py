@@ -157,6 +157,11 @@ def accumulate_block_recursive(self, block_hash, end_block_hash=None):
         'sequencerStartedFrom': max_sequenced_block_id
     }
 
+@app.task(base=BaseTask, bind=True)
+def accumulate_block_id_recursive(self, block_id, end_block_id=None):
+    substrate = SubstrateInterface(SUBSTRATE_RPC_URL)
+    block_hash = substrate.get_block_hash(block_id)
+    accumulate_block_recursive.delay(block_hash)
 
 @app.task(base=BaseTask, bind=True)
 def start_sequencer(self):
@@ -178,7 +183,7 @@ def start_sequencer(self):
             type_registry_file=TYPE_REGISTRY_FILE
         )
         try:
-            result = harvester.start_sequencer()
+            result = harvester.start_sequencer(accumulate_block_id_recursive.delay)
         except BlockIntegrityError as e:
             result = {'result': str(e)}
         except BlockDatetimeInvalid as e:

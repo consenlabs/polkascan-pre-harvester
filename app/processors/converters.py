@@ -62,13 +62,16 @@ class BlockDatetimeInvalid(Exception):
 class HarvesterCouldNotAddBlock(Exception):
     pass
 
-
 class BlockAlreadyAdded(Exception):
     pass
 
-
 class BlockIntegrityError(Exception):
-    pass
+    def __init__(self, msg, block_id=-1):
+        self.block_id = block_id
+        self.msg = msg
+
+    def __str__(self):
+        return self.msg
 
 
 class PolkascanHarvesterService(BaseService):
@@ -845,7 +848,7 @@ class PolkascanHarvesterService(BaseService):
                                 integrity_head.save(self.db_session)
                                 self.db_session.commit()
 
-                            raise BlockIntegrityError('Block #{} is missing.. stopping check '.format(parent_block.id + 1))
+                            raise BlockIntegrityError('Block #{} is missing.. stopping check '.format(parent_block.id + 1), parent_block.id + 1)
                         elif block.parent_hash != parent_block.hash:
 
                             self.process_reorg_block(parent_block)
@@ -882,12 +885,14 @@ class PolkascanHarvesterService(BaseService):
 
         return {'integrity_head': integrity_head.value}
 
-    def start_sequencer(self):
+    def start_sequencer(self, fix_integrity=None):
         try:
             integrity_status = self.integrity_checks()
             self.db_session.commit()
         except BlockIntegrityError as e:
             print(e)
+            if fix_integrity != None and e.block_id > 0:
+                fix_integrity(e.block_id)
 
         block_nr = None
 
