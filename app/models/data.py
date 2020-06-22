@@ -195,7 +195,7 @@ class Extrinsic(BaseModel):
     address = sa.Column(sa.String(64), index=True)
     account_index = sa.Column(sa.String(16), index=True)
     account_idx = sa.Column(sa.Integer(), index=True)
-    signature = sa.Column(sa.String(128))
+    signature = sa.Column(sa.String(255))
     nonce = sa.Column(sa.Integer())
 
     era = sa.Column(sa.String(4))
