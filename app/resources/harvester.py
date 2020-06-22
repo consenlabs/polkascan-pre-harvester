@@ -33,10 +33,9 @@ from app.models.harvester import Setting, Status
 from app.resources.base import BaseResource
 from app.schemas import load_schema
 from app.processors.converters import PolkascanHarvesterService, BlockAlreadyAdded, BlockIntegrityError
-from substrateinterface import SubstrateInterface 
 from app.tasks import accumulate_block_recursive, start_harvester, rebuild_search_index, rebuild_account_info_snapshot, rebuild_block_datetime
 from app.settings import SUBSTRATE_RPC_URL, TYPE_REGISTRY, TYPE_REGISTRY_FILE
-
+from app.substrate import SubstrateInterface
 
 class PolkascanStartHarvesterResource(BaseResource):
 
