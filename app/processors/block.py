@@ -63,8 +63,11 @@ class LogBlockProcessor(BlockProcessor):
                         ScaleBytes(bytearray.fromhex(log.data['value']['data'].replace('0x', '')))
                     ).decode()
 
-                    if babe_predigest['value']:
-                        log.data['value']['data'] = babe_predigest['value']
+                    if len(list(babe_predigest.values())) > 0:
+
+                        babe_predigest_value = list(babe_predigest.values())[0]
+
+                        log.data['value']['data'] = babe_predigest_value
                         self.block.authority_index = log.data['value']['data']['authorityIndex']
                         self.block.slot_number = log.data['value']['data']['slotNumber']
 
