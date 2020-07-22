@@ -307,21 +307,28 @@ class IdentityJudgementBlockProcessor(BlockProcessor):
                         created_at_block=self.block.id
                     )
 
-                judgement.judgement = identity_audit.data['judgement']
-                judgement.updated_at_block = self.block.id
+                if identity_audit.data:
+                    judgement.judgement = identity_audit.data.get('judgement')
+                    judgement.updated_at_block = self.block.id
 
-                judgement.save(db_session)
+                    judgement.save(db_session)
 
-                account = Account.query(db_session).get(identity_audit.account_id)
+                    account = Account.query(db_session).get(identity_audit.account_id)
 
-                if account:
+                    if account:
 
-                    if judgement.judgement in ['Reasonable', 'KnownGood']:
-                        account.identity_judgement_good = 1
-                        account.identity_judgement_bad = 0
+                        if judgement.judgement in ['Reasonable', 'KnownGood']:
+                            account.identity_judgement_good += 1
 
-                    if judgement.judgement in ['LowQuality', 'Erroneous']:
-                        account.identity_judgement_good = 0
-                        account.identity_judgement_bad = 1
+                        if judgement.judgement in ['LowQuality', 'Erroneous']:
+                            account.identity_judgement_bad += 1
 
-                    account.save(db_session)
+                        account.save(db_session)
+
+                        if account.has_subidentity:
+                            # Update sub identities
+                            sub_accounts = Account.query(db_session).filter_by(parent_identity=account.id)
+                            for sub_account in sub_accounts:
+                                sub_account.identity_judgement_good = account.identity_judgement_good
+                                sub_account.identity_judgement_bad = account.identity_judgement_bad
+                                sub_account.save(db_session)
