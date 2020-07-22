@@ -188,14 +188,17 @@ def start_sequencer(self):
 
 
 @app.task(base=BaseTask, bind=True)
-def rebuilding_search_index(self, search_index_id, truncate=False):
+def rebuilding_search_index(self, search_index_id=None, truncate=False):
     if truncate:
         # Clear search index table
         self.session.execute('delete from analytics_search_index where index_type_id={}'.format(search_index_id))
         self.session.commit()
 
-    harvester = PolkascanHarvesterService(self.session, type_registry=TYPE_REGISTRY)
-    harvester.rebuild_search_index(search_index_id)
+    harvester = PolkascanHarvesterService(
+        db_session=self.session,
+        type_registry=TYPE_REGISTRY
+    )
+    harvester.rebuild_search_index()
 
     return {'result': 'index rebuilt'}
 
@@ -266,6 +269,16 @@ def start_harvester(self, check_gaps=False):
         'block_sets': block_sets,
         'sequencer_task_id': sequencer_task.task_id
     }
+
+@app.task(base=BaseTask, bind=True)
+def rebuild_search_index(self, block_from=0, block_to=None):
+    harvester = PolkascanHarvesterService(
+        db_session=self.session,
+        type_registry=TYPE_REGISTRY
+    )
+    harvester.rebuild_search_index(block_from, block_to)
+
+    return {'result': 'search index rebuilt'}
 
 @app.task(base=BaseTask, bind=True)
 def rebuild_block_datetime(self, block_from, block_to=None):

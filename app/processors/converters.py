@@ -37,12 +37,14 @@ from scalecodec.type_registry import load_type_registry_preset
 from substrateinterface import SubstrateRequestException
 from app.substrate import SubstrateInterface
 
+from app import settings
 from app.settings import DEBUG, SUBSTRATE_RPC_URL, ACCOUNT_AUDIT_TYPE_NEW, ACCOUNT_INDEX_AUDIT_TYPE_NEW, \
     SUBSTRATE_MOCK_EXTRINSICS, FINALIZATION_BY_BLOCK_CONFIRMATIONS, SEARCH_INDEX_SLASHED_ACCOUNT, \
     SEARCH_INDEX_BALANCETRANSFER, SUBSTRATE_METADATA_VERSION
 from app.models.data import Extrinsic, Block, Event, Runtime, RuntimeModule, RuntimeCall, RuntimeCallParam, \
     RuntimeEvent, RuntimeEventAttribute, RuntimeType, RuntimeStorage, BlockTotal, RuntimeConstant, AccountAudit, \
-    AccountIndexAudit, ReorgBlock, ReorgExtrinsic, ReorgEvent, ReorgLog, RuntimeErrorMessage
+    AccountIndexAudit, ReorgBlock, ReorgExtrinsic, ReorgEvent, ReorgLog, RuntimeErrorMessage, \
+    SearchIndex
 
 SEQUENCE_BLOCKS_PER_BATCH = int(os.environ.get('SEQUENCE_BLOCKS_PER_BATCH', 5))
 
@@ -881,22 +883,57 @@ class PolkascanHarvesterService(BaseService):
                 model = ReorgLog(block_hash=block.hash, **log.asdict())
                 model.save(self.db_session)
 
-    def rebuild_search_index(self, search_index_type_id):
+    def rebuild_search_index(self, block_from=0, block_to=None):
 
-        if search_index_type_id == SEARCH_INDEX_SLASHED_ACCOUNT:
+        if block_to == None:
+            block_to = Block.query(self.db_session).count()
 
-            for event in Event.query(self.db_session).filter_by(module_id='staking', event_id='Slash'):
-                processor = SlashEventProcessor(block=event.block, event=event)
-                processor.process_search_index(self.db_session)
+        # self.db_session.execute('truncate table {}'.format(SearchIndex.__tablename__))
+        SearchIndex.query(self.db_session).filter(SearchIndex.block_id >= block_from, SearchIndex.block_id <= block_to).delete()
+        self.db_session.commit()
+
+        print('Rebuilding index from {} to {}'.format(block_from, block_to))
+
+        for n in range(block_from, block_to+1, settings.REBUILD_INDEX_BATCH_SIZE):
+
+            print('Process search index from block {} to {}'.format(n, n+settings.REBUILD_INDEX_BATCH_SIZE-1))
+
+            for block in Block.query(self.db_session).slice(n,n+settings.REBUILD_INDEX_BATCH_SIZE):
+                extrinsic_lookup = {}
+                block._accounts_new = []
+                block._accounts_reaped = []
+
+                print('Process search index for block {}'.format(block.id))
+
+                for extrinsic in Extrinsic.query(self.db_session).filter_by(block_id=block.id).order_by('extrinsic_idx'):
+                    extrinsic_lookup[extrinsic.extrinsic_idx] = extrinsic
+
+                    # Add search index for signed extrinsics
+                    if extrinsic.address:
+                        search_index = SearchIndex(
+                            index_type_id=settings.SEARCH_INDEX_SIGNED_EXTRINSIC,
+                            block_id=block.id,
+                            extrinsic_idx=extrinsic.extrinsic_idx,
+                            account_id=extrinsic.address
+                        )
+                        search_index.save(self.db_session)
+
+                    # Process extrinsic processors
+                    for processor_class in ProcessorRegistry().get_extrinsic_processors(extrinsic.module_id, extrinsic.call_id):
+                        extrinsic_processor = processor_class(block=block, extrinsic=extrinsic)
+                        extrinsic_processor.process_search_index(self.db_session)
+
+                for event in Event.query(self.db_session).filter_by(block_id=block.id).order_by('event_idx'):
+                    extrinsic = None
+                    if event.extrinsic_idx is not None:
+                        try:
+                            extrinsic = extrinsic_lookup[event.extrinsic_idx]
+                        except (IndexError, KeyError):
+                            extrinsic = None
+
+                    for processor_class in ProcessorRegistry().get_event_processors(event.module_id, event.event_id):
+                        event_processor = processor_class(block, event, extrinsic,
+                                                        metadata=self.metadata_store.get(block.spec_version_id))
+                        event_processor.process_search_index(self.db_session)
 
             self.db_session.commit()
-        elif search_index_type_id == SEARCH_INDEX_BALANCETRANSFER:
-
-            for event in Event.query(self.db_session).filter_by(module_id='balances', event_id='Transfer'):
-                processor = BalancesTransferProcessor(block=event.block, event=event)
-                processor.process_search_index(self.db_session)
-
-            self.db_session.commit()
-        else:
-            raise NotImplementedError('Not supported search index {}'.format(search_index_type_id))
-

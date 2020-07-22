@@ -161,6 +161,9 @@ class ExtrinsicProcessor(Processor):
         self.block = block
         self.extrinsic = extrinsic
 
+    def process_search_index(self, db_session):
+        pass
+
 
 class BlockProcessor(Processor):
 

@@ -26,7 +26,8 @@ from app.processors.base import EventProcessor
 from app.settings import ACCOUNT_AUDIT_TYPE_NEW, ACCOUNT_AUDIT_TYPE_REAPED, ACCOUNT_INDEX_AUDIT_TYPE_NEW, \
     ACCOUNT_INDEX_AUDIT_TYPE_REAPED, SUBSTRATE_RPC_URL, LEGACY_SESSION_VALIDATOR_LOOKUP, SEARCH_INDEX_SLASHED_ACCOUNT, \
     SEARCH_INDEX_BALANCETRANSFER, SEARCH_INDEX_HEARTBEATRECEIVED, SUBSTRATE_METADATA_VERSION, \
-    IDENTITY_TYPE_SET, IDENTITY_TYPE_CLEARED, IDENTITY_TYPE_KILLED, IDENTITY_JUDGEMENT_TYPE_GIVEN
+    IDENTITY_TYPE_SET, IDENTITY_TYPE_CLEARED, IDENTITY_TYPE_KILLED, IDENTITY_JUDGEMENT_TYPE_GIVEN, \
+    SEARCH_INDEX_CUSTOM_STAKING_REWARD
 
 from app.utils.ss58 import ss58_encode
 from scalecodec import ScaleBytes, Proposal
@@ -661,3 +662,16 @@ class IdentityJudgementGivenEventProcessor(EventProcessor):
     def accumulation_revert(self, db_session):
         for item in IdentityJudgementAudit.query(db_session).filter_by(block_id=self.block.id):
             db_session.delete(item)
+
+class CustomStakingRewardProcessor(EventProcessor):
+    module_id = 'staking'
+    event_id = 'Reward'
+
+    def process_search_index(self, db_session):
+        search_index = self.add_search_index(
+            index_type_id=SEARCH_INDEX_CUSTOM_STAKING_REWARD,
+            account_id=self.event.attributes[0]['value'].replace('0x', ''),
+            sorting_value=self.event.attributes[1]['value']
+        )
+
+        db_session.add(search_index)

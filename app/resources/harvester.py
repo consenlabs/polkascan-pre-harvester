@@ -26,6 +26,7 @@ from celery.result import AsyncResult
 from falcon.media.validators.jsonschema import validate
 from sqlalchemy import text, func
 
+from app import settings
 from app.models.data import Block, BlockTotal
 from app.models.harvester import Setting, Status
 from app.resources.base import BaseResource
@@ -276,15 +277,19 @@ class StartIntegrityResource(BaseResource):
 class RebuildSearchIndexResource(BaseResource):
 
     def on_post(self, req, resp):
-        task = rebuilding_search_index.delay(req.media.get('search_index_id'))
+        if settings.CELERY_RUNNING:
+            task = rebuild_search_index.delay()
+            data = {
+                'task_id': task.id
+            }
+        else:
+            data = rebuild_search_index()
 
         resp.status = falcon.HTTP_201
 
         resp.media = {
             'status': 'Search index rebuild task created',
-            'data': {
-                'task_id': task.id
-            }
+            'data': data
         }
 
 class PolkascanProcessBlocksResource(BaseResource):
