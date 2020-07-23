@@ -1370,3 +1370,17 @@ class ClaimsClaimed(EventProcessor):
         )
 
         search_index.save(db_session)
+
+
+class StakingRewardProcessor(EventProcessor):
+    module_id = 'staking'
+    event_id = 'Reward'
+
+    def process_search_index(self, db_session):
+        search_index = self.add_search_index(
+            index_type_id=settings.SEARCH_INDEX_CUSTOM_STAKING_REWARD,
+            account_id=self.event.attributes[0]['value'].replace('0x', ''),
+            sorting_value=self.event.attributes[1]['value']
+        )
+
+        db_session.add(search_index)

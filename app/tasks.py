@@ -34,7 +34,8 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.sql import func
 
-from app.models.data import Extrinsic, Block, BlockTotal, Account, AccountInfoSnapshot, SearchIndex
+from app.processors.base import ProcessorRegistry
+from app.models.data import Extrinsic, Block, BlockTotal, Account, AccountInfoSnapshot, SearchIndex, Event
 from app.models.harvester import Status
 from app.processors.converters import PolkascanHarvesterService, HarvesterCouldNotAddBlock, BlockAlreadyAdded, \
     BlockIntegrityError, BlockDatetimeInvalid
@@ -420,6 +421,42 @@ def update_balances_in_block(self, block_id):
     self.session.commit()
 
     return 'Snapshot created for block {}'.format(block_id)
+
+@app.task(base=BaseTask, bind=True)
+def rebuild_staking_reward_search_index(self, block_from=0, block_to=None):
+    if block_to == None:
+        block_to = Block.query(self.session).count()
+
+    SearchIndex.query(self.session).filter(
+        SearchIndex.block_id >= block_from,
+        SearchIndex.block_id <= block_to,
+        SearchIndex.index_type_id == settings.SEARCH_INDEX_CUSTOM_STAKING_REWARD).delete()
+    self.session.commit()
+
+    print('Rebuilding staking reward index from {} to {}'.format(block_from, block_to))
+
+    substrate = SubstrateInterface(SUBSTRATE_RPC_URL)
+    for n in range(block_from, block_to+1, settings.REBUILD_INDEX_BATCH_SIZE):
+        to = n+settings.REBUILD_INDEX_BATCH_SIZE-1
+        if to >= block_to:
+            to = block_to
+
+        print('Process search index from block {} to {}'.format(n, to))
+
+        for event in Event.query(self.session).filter(
+            Event.module_id == 'staking',
+            Event.event_id == 'Reward',
+            Event.block_id >= n,
+            Event.block_id <= to).order_by('block_id', 'event_idx'):
+            for processor_class in ProcessorRegistry().get_event_processors(event.module_id, event.event_id):
+                event_processor = processor_class(None, event, None,
+                                                metadata=self.metadata_store.get(event.spec_version_id),
+                                                substrate=substrate)
+                event_processor.process_search_index(self.session)
+
+        self.session.commit()
+
+    return {'result': 'staking reward search indices rebuilt'}
 
 @app.task(base=BaseTask, bind=True)
 def rebuild_block_datetime(self, block_from, block_to=None):
