@@ -141,7 +141,7 @@ class EventProcessor(Processor):
     def add_search_index(self, index_type_id, account_id=None, sorting_value=None):
         return SearchIndex(
             index_type_id=index_type_id,
-            block_id=self.block.id,
+            block_id=self.event.block_id,
             event_idx=self.event.event_idx,
             extrinsic_idx=self.event.extrinsic_idx,
             account_id=account_id,
