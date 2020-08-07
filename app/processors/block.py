@@ -325,7 +325,7 @@ class IdentityJudgementBlockProcessor(BlockProcessor):
 
                         account.save(db_session)
 
-                        if account.has_subidentity:
+                        if hasattr(account, 'has_subidentity') and account.has_subidentity:
                             # Update sub identities
                             sub_accounts = Account.query(db_session).filter_by(parent_identity=account.id)
                             for sub_account in sub_accounts:
