@@ -48,5 +48,5 @@ pydevd-pycharm
 py-sr25519-bindings>=0.1.2
 py-bip39-bindings>=0.1.4
 
-scalecodec>=0.10.10
+scalecodec>=0.10.12
 substrate-interface>=0.9.16
