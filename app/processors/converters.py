@@ -140,8 +140,6 @@ class PolkascanHarvesterService(BaseService):
         initial_session_event.add_session(db_session=self.db_session, session_id=0)
 
     def process_metadata(self, spec_version, block_hash):
-        # Setup codec
-        RuntimeConfiguration().set_active_spec_version_id(spec_version)
 
         # Check if metadata already in store
         if spec_version not in self.metadata_store:
@@ -152,7 +150,11 @@ class PolkascanHarvesterService(BaseService):
             runtime = Runtime.query(self.db_session).get(spec_version)
 
             if runtime:
-                self.metadata_store[spec_version] = self.substrate.get_block_metadata(block_hash=block_hash)
+
+                if spec_version in self.substrate.metadata_cache:
+                    self.metadata_store[spec_version] = self.substrate.metadata_cache[spec_version]
+                else:
+                    self.metadata_store[spec_version] = self.substrate.get_block_metadata(block_hash=block_hash)
 
             else:
                 self.db_session.begin(subtransactions=True)
@@ -454,7 +456,13 @@ class PolkascanHarvesterService(BaseService):
         events = []
 
         try:
+            # TODO implemented solution in substrate interface for runtime transition blocks
+            # Events are decoded against runtime of parent block
+            RuntimeConfiguration().set_active_spec_version_id(parent_spec_version)
             events_decoder = self.substrate.get_block_events(block_hash, self.metadata_store[parent_spec_version])
+
+            # Revert back to current runtime
+            RuntimeConfiguration().set_active_spec_version_id(block.spec_version_id)
 
             event_idx = 0
 
