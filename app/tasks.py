@@ -38,7 +38,7 @@ from app.processors.base import ProcessorRegistry
 from app.models.data import Extrinsic, Block, BlockTotal, Account, AccountInfoSnapshot, SearchIndex, Event
 from app.models.harvester import Status
 from app.processors.converters import PolkascanHarvesterService, HarvesterCouldNotAddBlock, BlockAlreadyAdded, \
-    BlockIntegrityError,BlockDatetimeInvalid
+    BlockIntegrityError, BlockDatetimeInvalid
 
 from substrateinterface import SubstrateInterface
 from app.substrate import SubstrateInterface
