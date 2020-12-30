@@ -35,8 +35,9 @@ from scalecodec.block import ExtrinsicsDecoder
 
 from app.processors.base import BaseService, ProcessorRegistry
 from scalecodec.type_registry import load_type_registry_file
-from substrateinterface import SubstrateRequestException, xxh128, logger
-from app.substrate import SubstrateInterface
+from substrateinterface import SubstrateInterface, logger
+from substrateinterface.exceptions import SubstrateRequestException
+from substrateinterface.utils.hasher import xxh128
 
 from app.models.data import Extrinsic, Block, Event, Runtime, RuntimeModule, RuntimeCall, RuntimeCallParam, \
     RuntimeEvent, RuntimeEventAttribute, RuntimeType, RuntimeStorage, BlockTotal, RuntimeConstant, AccountAudit, \
@@ -87,7 +88,8 @@ class PolkascanHarvesterService(BaseService):
         self.substrate = SubstrateInterface(
             url=settings.SUBSTRATE_RPC_URL,
             type_registry=custom_type_registry,
-            type_registry_preset=type_registry
+            type_registry_preset=type_registry,
+            runtime_config=RuntimeConfiguration()
         )
         self.metadata_store = {}
 
@@ -808,7 +810,7 @@ class PolkascanHarvesterService(BaseService):
     def integrity_checks(self):
 
         # 1. Check finalized head
-        substrate = SubstrateInterface(settings.SUBSTRATE_RPC_URL)
+        substrate = SubstrateInterface(url=settings.SUBSTRATE_RPC_URL, runtime_config=RuntimeConfiguration())
 
         if settings.FINALIZATION_BY_BLOCK_CONFIRMATIONS > 0:
             finalized_block_hash = substrate.get_chain_head()
@@ -892,7 +894,7 @@ class PolkascanHarvesterService(BaseService):
 
     def start_sequencer(self, fix_integrity=None):
         try:
-            integrity_status = self.integrity_checks()
+            #integrity_status = self.integrity_checks()
             self.db_session.commit()
         except BlockIntegrityError as e:
             print(e)

@@ -19,6 +19,7 @@
 #  event.py
 #
 from packaging import version
+from scalecodec.base import RuntimeConfiguration
 
 from app import settings
 from app.models.data import Contract, Session, AccountAudit, \
@@ -32,7 +33,8 @@ from app.settings import ACCOUNT_AUDIT_TYPE_NEW, ACCOUNT_AUDIT_TYPE_REAPED, ACCO
     IDENTITY_JUDGEMENT_TYPE_GIVEN
 
 from scalecodec.exceptions import RemainingScaleBytesNotEmptyException
-from substrateinterface import SubstrateInterface, StorageFunctionNotFound
+from substrateinterface import SubstrateInterface
+from substrateinterface.exceptions import StorageFunctionNotFound
 
 
 class NewSessionEventProcessor(EventProcessor):
@@ -216,7 +218,7 @@ class NewSessionEventProcessor(EventProcessor):
         nominators = []
         validation_session_lookup = {}
 
-        substrate = SubstrateInterface(settings.SUBSTRATE_RPC_URL)
+        substrate = SubstrateInterface(url=settings.SUBSTRATE_RPC_URL, runtime_config=RuntimeConfiguration())
 
         # Retrieve current era
         storage_call = RuntimeStorage.query(db_session).filter_by(
